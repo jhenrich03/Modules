@@ -12,9 +12,9 @@ Where-Object {$_.expirydate -ge $midnight2 -and $_.expirydate -le $midnight}
 foreach ($U in $Users) {
 
 $subject = "Password Expiration Notice"
-$from = "helpdesk@mastersoncompany.com"
+$from = "email@mastersoncompany.com"
 $to = "$($U.userprincipalname)"
-$server = "ex2.mastersoncompany.com"
+$server = "server.mastersoncompany.com"
 $link = "<a href='http://helpdesk'>here.</a>"
 $body = "
 <font face=""Arial"">
@@ -36,6 +36,6 @@ $body = "
  This is a message from the Masterson IT Department. If you have any questions, please reply to this email or submit a ticket $link
 </font>"
 
-Send-MailMessage -From $from -To $to -Bcc josh.henrich@mastersoncompany.com -Body $body -BodyAsHtml -Subject $subject -SmtpServer $server
+Send-MailMessage -From $from -To $to -Bcc myemail@company.com -Body $body -BodyAsHtml -Subject $subject -SmtpServer $server
 
 }
