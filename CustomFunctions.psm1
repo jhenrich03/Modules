@@ -194,12 +194,13 @@ Get-FreeSpace -computername localhost
                 $obj = New-Object -TypeName PSObject -Property $hash
                 Write-Output $obj
                          }
+                Write-Verbose "Finished retrieving disk information."
                 }
             }
      }
 
      END {
-     Write-Verbose "Finished retrieving disk information."
+     
      }
 }
 
@@ -541,7 +542,8 @@ Get-ADComputer -Filter ("Name -like '$ComputerName'") -Properties description,na
 
 Function global:Get-NavUsers {
 
-    Invoke-Command -ComputerName SQL -ScriptBlock {
+    Invoke-Command -ComputerName NAVSQL1 -ScriptBlock {
+        (Invoke-Sqlcmd -ServerInstance NAVSQL1 -Database MastersonLIVE -Query "SELECT [Session ID],[User ID],[Client Type] FROM [dbo].[Active Session] ORDER BY [Client Type] DESC")} | 
             Select @{n='SessionID';e={$_.'Session ID'}},@{n='User';e={$_.'User ID'.Replace('MASTERSON\',"")}},
             @{
             n='ClientType';
@@ -567,7 +569,7 @@ Function global:Get-NavUsers {
 
 Function global:Get-VicinityUsers {
 
-    Invoke-Command -ComputerName SQL -ScriptBlock {Invoke-Sqlcmd -ServerInstance NAVSQL1 -Database -Query "SELECT [ComputerName],[UserID],[LoginDate] FROM [dbo].[Login] ORDER BY [UserID]"} |
+    Invoke-Command -ComputerName NAVSQL1 -ScriptBlock {Invoke-Sqlcmd -ServerInstance NAVSQL1 -Database Vicinity -Query "SELECT [ComputerName],[UserID],[LoginDate] FROM [dbo].[Login] ORDER BY [UserID]"} |
     
     Select @{n='User';e={($_.UserID.ToString()).ToUpper()}},@{n='Computer';e={$_.ComputerName}},LoginDate -ExcludeProperty PSComputerName,RunspaceId
                         
@@ -586,7 +588,7 @@ Function global:Kill-NavUsers {
     Invoke-Command -ComputerName NAVSQL1  -ArgumentList $Session -ScriptBlock {
 
             param($Session)
-            Invoke-Sqlcmd -ServerInstance SERVER -Database DB -Query "DELETE [dbo].[Active Session] WHERE [Session ID] = '$Session'"
+            Invoke-Sqlcmd -ServerInstance NAVSQL1 -Database MastersonLIVE -Query "DELETE [dbo].[Active Session] WHERE [Session ID] = '$Session'"
     }
               
 }
@@ -602,8 +604,8 @@ Function global:New-MainsaverUser {
     [string]$Password
     )
 
-   $Server = 'SERVER'
-   $Database = 'DB'
+   $Server = 'NAVSQL1'
+   $Database = 'MSDB1'
    
 
    $Query = "CREATE LOGIN $Login WITH PASSWORD = '$Password',
@@ -974,5 +976,42 @@ foreach ($S in $Server) {
 $finalobj
 }
 
+Function global:Get-BackupSchedule {
 
+[CmdletBinding()]
+    Param
+    (    
+    [string[]]$JobName = '*'
+    )
+
+
+ if (!($jobs = get-vbrjob -name "$JobName" | where isbackup)) {
+    Write-Warning "Please enter a valid job name."
+ }
+
+
+$finalobj = @()
+
+
+foreach ($job in $jobs) {
+   
+    $nextrun = [datetime]($job | select -ExpandProperty scheduleoptions | select -expand nextrun)
+    $name = $job.name
+
+    $obj = New-Object -TypeName PSObject    
+    $obj | Add-Member -MemberType NoteProperty -Name 'JobName' -Value $name
+    $obj | Add-Member -MemberType NoteProperty -Name 'NextRun' -Value $nextrun
+    $finalobj += $obj
+}
+
+$finalobj | sort nextrun
+
+
+}
+
+function global:Get-LastBackups {
+
+Get-VBRBackupSession |sort endtime | select -last 10 | select jobname,result,@{n='StartTime';e={$_.CreationTime}},@{n='Duration(Min)';e={($_.EndTime - $_.CreationTime).minutes}}
+
+}
 
